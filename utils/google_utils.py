@@ -19,7 +19,6 @@ def gsutil_getsize(url=''):
 def attempt_download(file):
     # Attempt file download if does not exist
     file = Path(str(file).strip().replace("'", '').lower())
-
     if not file.exists():
         response = requests.get('https://api.github.com/repos/ultralytics/yolov3/releases/latest').json()  # github api
         assets = [x['name'] for x in response['assets']]  # release assets ['yolov3.pt', 'yolov3-spp.pt', ...]
