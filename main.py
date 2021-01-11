@@ -1,4 +1,5 @@
 import argparse
+import os
 import cv2
 import time
 from pathlib import Path
@@ -9,14 +10,18 @@ import torch.backends.cudnn as cudnn
 
 from utils.utils import ImageReader, VideoReader
 from utils.torch_utils import select_device
+from utils.general import increment_path
 
 def get_args():
     parser = argparse.ArgumentParser('Object-pose detector.')
 
     # Common arguments
+    parser.add_argument('--project', default='projects/coco', help='save results to project/name')
+    parser.add_argument('--name', default='exp', help='save to project/name')
     parser.add_argument('--tasks', nargs='+', type=str, default=['Object', 'Pose'], help='detecting tasks to implement')
     parser.add_argument('--source', type=str, default='0', help='source')  # file/folder, 0 for webcam
     parser.add_argument('--device', default='0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
+    parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
 
     # Object detection arguments
     parser.add_argument('--object-weights', nargs='+', type=str, default='weights/yolov3.pt', help='object detection model.pt path(s)')
@@ -26,8 +31,6 @@ def get_args():
     parser.add_argument('--agnostic-nms', action='store_true', help='class-agnostic NMS')
     parser.add_argument('--augment', action='store_true', help='augmented inference')
     parser.add_argument('--update', action='store_true', help='update all models')
-    parser.add_argument('--project', default='runs/detect', help='save results to project/name')
-    parser.add_argument('--name', default='exp', help='save results to project/name')
     parser.add_argument('--img-size', type=int, default=640, help='inference size (height, weight)')
 
     # Pose detection arguments
@@ -61,6 +64,11 @@ def detect():
         args.track = 0
         save_img = True
 
+    # Directories
+    save_dir = Path(increment_path(Path(args.project) / args.name, exist_ok=args.exist_ok))  # increment run
+    save_dir.mkdir(parents=True, exist_ok=True)  # make dir
+    txt_path = os.path.join(save_dir, 'results.txt')
+
     # Initialize
     device = select_device(args.device)
     half = device.type != 'cpu'  # half precision only supported on CUDA
@@ -68,7 +76,7 @@ def detect():
     if 'Object' in tasks:
         from models.experimental import attempt_load
         from utils.general import check_img_size, non_max_suppression, apply_classifier, scale_coords, xyxy2xywh, \
-            strip_optimizer, set_logging, increment_path
+            strip_optimizer, set_logging
         from utils.plots import plot_one_box
         from utils.torch_utils import load_classifier, time_synchronized
         from utils.datasets import letterbox
@@ -105,7 +113,8 @@ def detect():
         upsample_ratio = 4
         num_keypoints = Pose.num_kpts
         previous_poses = []
-
+    
+    frame_idx = 1
     for img in frame_provider:
         total_tic = time.time()
         orig_img = img.copy()
@@ -166,35 +175,50 @@ def detect():
             pred = non_max_suppression(pred, args.conf_thres, args.iou_thres, classes=args.classes, agnostic=args.agnostic_nms)
 
             # Process detections
-            for i, det in enumerate(pred):  # detections per image
+            for det in pred:  # detections per image
                 if len(det):
                     # Rescale boxes from img_size to im0 size
                     det[:, :4] = scale_coords(img.shape[2:], det[:, :4], orig_img.shape).round()
 
-        # Draw pose detection results
-        for pose in current_poses:
-            pose.draw(orig_img)
-            for pose in current_poses:
-                cv2.rectangle(orig_img, (pose.bbox[0], pose.bbox[1]),
-                            (pose.bbox[0] + pose.bbox[2], pose.bbox[1] + pose.bbox[3]), (0, 255, 0))
-                if args.track:
-                    cv2.putText(orig_img, 'id: {}'.format(pose.id), (pose.bbox[0], pose.bbox[1] - 16),
-                                cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 0, 255))
-
-        # Draw object detection results
-        if det is not None:
-            # Write results
-            for *xyxy, conf, cls in reversed(det):
-                if save_img or view_img:  # Add bbox to image
-                    label = '%s %.2f' % (object_names[int(cls)], conf)
-                    plot_one_box(xyxy, orig_img, label=label, color=object_colors[int(cls)], line_thickness=3)
-
-        # Stream results
-        if view_img:
+        with open(txt_path, 'a') as f:
+            f.write('Frame {}\n'.format(frame_idx))
+            frame_idx += 1
             total_toc = time.time()
             total_time = total_toc - total_tic
             frame_rate = 1 / total_time
+            f.write('{:.2f} fps\n'.format(frame_rate))
             print('{:.2f} fps'.format(frame_rate))
+
+            # Draw pose detection results
+            for pose in current_poses:
+                pose.draw(orig_img)
+                """
+                cv2.rectangle(orig_img, (pose.bbox[0], pose.bbox[1]),
+                            (pose.bbox[0] + pose.bbox[2], pose.bbox[1] + pose.bbox[3]), (0, 255, 0))
+                """
+                if args.track:
+                    cv2.putText(orig_img, 'id: {}'.format(pose.id), (pose.bbox[0], pose.bbox[1] - 16),
+                                cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 0, 255))
+                f.write(str(pose.id) + '\n')
+                f.write(str(pose.keypoints) + '\n')
+
+            # Draw object detection results
+            for det in pred: 
+                #gn = torch.tensor(orig_img.shape)[[1, 0, 1, 0]]  # normalization gain whwh
+                if det is not None:
+                    # Write results
+                    for *xyxy, conf, cls in reversed(det):
+                        #xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
+                        line = '{0}, {1:.2f}, {2}, {3}, {4}, {5}\n'.format(object_names[int(cls)], conf, 
+                                                                         int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]))
+                        f.write(line)
+
+                        if save_img or view_img:  # Add bbox to image
+                            label = '{0} {1:.2f}'.format(object_names[int(cls)], conf) 
+                            plot_one_box(xyxy, orig_img, label=label, color=object_colors[int(cls)], line_thickness=3)
+
+        # Stream results
+        if view_img:
             cv2.imshow('Results', orig_img)
             key = cv2.waitKey(1)
             if key == 27:  # esc
