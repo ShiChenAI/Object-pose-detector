@@ -11,6 +11,7 @@ import torch.backends.cudnn as cudnn
 from utils.utils import ImageReader, VideoReader
 from utils.torch_utils import select_device
 from utils.general import increment_path
+from processor import ImageProcessor
 
 def get_args():
     parser = argparse.ArgumentParser('Object-pose detector.')
@@ -37,13 +38,14 @@ def get_args():
     parser.add_argument('--pose-weights', type=str, default='weights/checkpoint_iter_370000.pth', help='pose detection model path')
     parser.add_argument('--track', type=int, default=1, help='track pose id in video')
     parser.add_argument('--smooth', type=int, default=1, help='smooth pose keypoints')
+    parser.add_argument('--stride', type=int, default=8)
+    parser.add_argument('--upsample_ratio', type=int, default=4)
     parser.add_argument('--height-size', type=int, default=256, help='network input layer height size')
 
     args = parser.parse_args()
     print(args)
 
     return args
-
 
 def detect():
     args = get_args()
@@ -226,6 +228,8 @@ def detect():
     
 
 if __name__ == '__main__':
-    detect()
-
-
+    #detect()
+    args = get_args()
+    ip = ImageProcessor(args)
+    dets = ip.process(video_src=0, show_results=True)
+    #print(dets)
