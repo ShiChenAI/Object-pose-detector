@@ -29,6 +29,10 @@ class ImageProcessor:
 
     def _pose_dect_init(self, device):
         """Initialize the pose detection model.
+
+        Arguments:
+            device {torch.device}: device to implement the models on.
+
         Returns:
             PoseEstimationWithMobileNet: initialized OpenPose model.
         """        
@@ -45,14 +49,14 @@ class ImageProcessor:
 
     def _infer_fast(self, **kwargs):
         """Pose inference using fast OpenPose model.
+        
         Arguments:
             img {ndarray}: input image.
             model {PoseEstimationWithMobileNet: initialized OpenPose model.
             pad_value {tuple}: pad value.
             img_mean {tuple}: mean image value.
             img_scale {float}: scale image value.
-            stride {integer}: stride value.
-            upsample_ratio {integer}: upsample ratio value.
+
         Returns:
             ndarray: heatmaps.
             ndarray: pafs.
@@ -99,7 +103,7 @@ class ImageProcessor:
         """Detect poses.
         Arguments:
             img {ndarray}: input image.
-            model {PoseEstimationWithMobileNet: initialized OpenPose model.
+            model {PoseEstimationWithMobileNet}: initialized OpenPose model.
             previous_poses {list}: previous poses for tracking mode.
         Returns:
             list: detected poses.
@@ -149,6 +153,17 @@ class ImageProcessor:
         return current_poses
 
     def _object_dect_init(self, device):
+        """Initialize object detection model.
+
+        Arguments:
+            device {torch.device}: device to implement the models on.
+
+        Returns:
+            Ensemble: initialized YOLOv3 model.
+            list: object names.
+            list: object colors.
+        """   
+
         weight_path = self.__params.object_weights
         input_size = self.__params.img_size
         
@@ -168,6 +183,17 @@ class ImageProcessor:
         return object_model, object_names, object_colors
 
     def _detect_object(self, **kwargs):
+        """Detect objects.
+
+        Arguments:
+            img {ndarray}: input image.
+            device {torch.device}: device to implement the models on.
+            model {Ensemble}: initialized YOLOv3 model.
+
+        Returns:
+            dictionary: detected objects.
+        """      
+
         framed_img = kwargs.get('img', None)
         device = kwargs.get('device', None)
         model = kwargs.get('model', None)
@@ -202,12 +228,35 @@ class ImageProcessor:
         return out
 
     def init_models(self, device):
+        """Initialize object/pose detection models.
+
+        Arguments:
+            device {torch.device}: device to implement the models on.
+
+        Returns:
+            PoseEstimationWithMobileNet: initialized OpenPose model.
+            Ensemble: initialized YOLOv3 model.
+            list: object names.
+            list: object colors.
+        """        
+
         pose_model = self._pose_dect_init(device)
         object_model, object_names, object_colors = self._object_dect_init(device)
         
         return pose_model, object_model, object_names, object_colors
 
     def process_frame(self, **kwargs):
+        """Process a single frame.
+
+        Arguments:
+            frame {ndarray}: frame image.
+            device {torch.device}: device to implement the models on.
+
+        Returns:
+            dictionary: detected objects.
+            list: detected poses.
+        """   
+
         frame = kwargs.get('frame', None)
         device = kwargs.get('device', None)
         
@@ -228,24 +277,31 @@ class ImageProcessor:
         return out, current_poses
 
     def process(self, **kwargs):
-        """Process images.
+        """Process images/video.
         
         Arguments:
             images {string}: paths of the input image.
             video_src {string}: path pf the input video (0 for webcam).
             show_results {boolen}: whether to show the results or not.
+
+        Returns:
+            dictionary: detected pose/objects.
         """      
           
         images = kwargs.get('images', '')
         video_src = kwargs.get('video_src', '')
         show_results = kwargs.get('show_results', False)
         device = select_device(self.__params.device)
+
+        # Set frame provider
         frame_provider = ImageReader(images)
         if video_src != '':
             frame_provider = VideoReader(video_src)
 
+        # Initialize object/pose detection models
         pose_model, object_model, object_names, object_colors = self.init_models(device)
 
+        # Process frames
         previous_poses = []
         dets = {}
         frame_idx = 1
@@ -256,15 +312,18 @@ class ImageProcessor:
                                                     object_model=object_model,
                                                     pose_model=pose_model,
                                                     previous_poses=previous_poses)
-            dets[frame_idx] = {"Pose": current_poses, "Object": out}
+            dets[frame_idx] = {'Pose': current_poses, 'Object': out}
             frame_idx += 1
-            img_show = display_results(pred=out, 
-                                       img=frame, 
-                                       obj_list=object_names, 
-                                       colors=object_colors, 
-                                       current_poses=current_poses,
-                                       track=self.__params.track)
+            
+            # Show results
             if show_results:
+                img_show = display_results(pred=out, 
+                                           img=frame, 
+                                           obj_list=object_names, 
+                                           colors=object_colors, 
+                                           current_poses=current_poses,
+                                           track=self.__params.track)
+
                 cv2.imshow('Results', img_show)
                 total_toc = time.time()
                 total_time = total_toc - total_tic
