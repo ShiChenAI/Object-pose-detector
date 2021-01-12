@@ -1,6 +1,7 @@
 import cv2
-from utils.general import scale_coords
 import numpy as np
+from utils.general import scale_coords
+
 class ImageReader(object):
     def __init__(self, file_names):
         self.file_names = file_names
@@ -18,7 +19,6 @@ class ImageReader(object):
             raise IOError('Image {} cannot be read'.format(self.file_names[self.idx]))
         self.idx = self.idx + 1
         return img
-
 
 class VideoReader(object):
     def __init__(self, file_name):
@@ -49,16 +49,16 @@ def postprocess(pred, pre_shape, ori_shape):
             # Rescale boxes from img_size to im0 size
             det[:, :4] = scale_coords(pre_shape[2:], det[:, :4], ori_shape).round()
             for *xyxy, conf, cls_ in det:
-                rois.append([float(xyxy[0]), float(xyxy[1]), float(xyxy[2]), float(xyxy[3])])
-                class_ids.append(cls_.cpu().detach().numpy())
-                scores.append(conf.cpu().detach().numpy())
+                rois.append([int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3])])
+                class_ids.append(int(cls_))
+                scores.append(float(conf))
+
     out = {'rois': np.array(rois),
            'class_ids': np.array(class_ids),
            'scores': np.array(scores)}
     return out
 
 def display_results(pred, img, obj_list, colors, current_poses, track):
-    #imgs[i] = cv2.addWeighted(orig_img, 0.6, imgs[i], 0.4, 0)
     for pose in current_poses:
         pose.draw(img)
         """
@@ -73,10 +73,10 @@ def display_results(pred, img, obj_list, colors, current_poses, track):
         return img
 
     for i in range(len(pred['rois'])):
-        (x1, y1, x2, y2) = pred['rois'][i].astype(np.int)
-        cv2.rectangle(img, (x1, y1), (x2, y2), colors[int(pred['class_ids'][i])], 2)
-        obj = obj_list[int(pred['class_ids'][i])]
-        score = float(pred['scores'][i])
+        (x1, y1, x2, y2) = pred['rois'][i]
+        cv2.rectangle(img, (x1, y1), (x2, y2), colors[pred['class_ids'][i]], 2)
+        obj = obj_list[pred['class_ids'][i]]
+        score = pred['scores'][i]
 
         cv2.putText(img, '{}, {:.3f}'.format(obj, score),
                     (x1, y1 + 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5,

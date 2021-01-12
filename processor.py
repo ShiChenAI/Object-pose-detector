@@ -194,17 +194,17 @@ class ImageProcessor:
             dictionary: detected objects.
         """      
 
-        framed_img = kwargs.get('img', None)
+        frame_img = kwargs.get('img', None)
         device = kwargs.get('device', None)
         model = kwargs.get('model', None)
         input_size = self.__params.img_size
         conf_thres = self.__params.conf_thres
         iou_thres = self.__params.iou_thres
 
-        img = framed_img.copy()
+        img = frame_img.copy()
 
         # Padded resize
-        img = letterbox(framed_img, new_shape=input_size)[0]
+        img = letterbox(frame_img, new_shape=input_size)[0]
 
         # Convert
         img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x640x640
@@ -223,7 +223,7 @@ class ImageProcessor:
             pred = non_max_suppression(pred, conf_thres, iou_thres)
 
             # Process detected objects
-            out = postprocess(pred, img.shape, framed_img.shape)
+            out = postprocess(pred, img.shape, frame_img.shape)
 
         return out
 
