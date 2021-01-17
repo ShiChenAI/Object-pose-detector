@@ -13,11 +13,11 @@ def get_args():
 
     # Common arguments
     parser.add_argument('--start-id', type=int, default=1, help='start bounding box ID')
-    parser.add_argument('--cfg', type=str, default='/data/coco.yaml', help='dataset configuration file path') 
-    parser.add_argument('--images-dir', type=str, default='/mnt/data/Dataset/SAFEWORK/JPEGImages/', help='image directory') 
-    parser.add_argument('--annotations-dir', type=str, default='/mnt/data/Dataset/SAFEWORK/Annotations/', help='annotation directory') 
+    parser.add_argument('--cfg', type=str, help='dataset configuration file path') 
+    parser.add_argument('--images-dir', type=str, help='image directory') 
+    parser.add_argument('--annotations-dir', type=str, help='annotation directory') 
     parser.add_argument('--dataset-list', type=str, help='dataset list file')
-    parser.add_argument('--output-dir', type=str, default='/mnt/data/Dataset/SAFEWORK_coco/', help='output directory') 
+    parser.add_argument('--output-dir', type=str, help='output directory') 
     parser.add_argument('--split-ratio', type=int, default=95, help='split ration of train/val dataset') 
 
     args = parser.parse_args()
@@ -91,76 +91,75 @@ def convert(args, categories):
     bnd_id = args.start_id
 
     for xml_dir in xml_dirs:
-        for _, _, xml_filename in os.walk(xml_dir):
-            dataset = get_dataset(args.split_ratio)
-            if dataset == 'train':
-                dest_img_dir = os.path.join(args.output_dir, 'train')
-            elif dataset == 'val':
-                dest_img_dir = os.path.join(args.output_dir, 'val')
-            
-            if not os.path.exists(dest_img_dir):
-                os.makedirs(dest_img_dir)
-
-            xml_path = os.path.join(xml_dir, xml_filename)
-            tree = ET.parse(xml_path)
-            root = tree.getroot()
-
-            has_cat = False
-            for obj in get(root, 'object'):
-                category = get_and_check(obj, 'name', 1).text
-                if category not in categories:
-                    continue
-
-                has_cat = True
-                category_id = categories[category]
-                bndbox = get_and_check(obj, 'bndbox', 1)
-                xmin = int(get_and_check(bndbox, 'xmin', 1).text) - 1
-                ymin = int(get_and_check(bndbox, 'ymin', 1).text) - 1
-                xmax = int(get_and_check(bndbox, 'xmax', 1).text)
-                ymax = int(get_and_check(bndbox, 'ymax', 1).text)
-                assert(xmax > xmin)
-                assert(ymax > ymin)
-                o_width = abs(xmax - xmin)
-                o_height = abs(ymax - ymin)
-                ann = {'area': o_width*o_height, 
-                       'iscrowd': 0, 
-                       'image_id': image_id, 
-                       'bbox':[xmin, ymin, o_width, o_height],
-                       'category_id': category_id, 
-                       'id': bnd_id, 
-                       'ignore': 0,
-                       'segmentation': []}
-
+        for _, _, xml_filenames in os.walk(xml_dir):
+            for xml_filename in xml_filenames:
+                dataset = get_dataset(args.split_ratio)
                 if dataset == 'train':
-                    train_json_dict['annotations'].append(ann)
+                    dest_img_dir = os.path.join(args.output_dir, 'train')
                 elif dataset == 'val':
-                    val_json_dict['annotations'].append(ann)
+                    dest_img_dir = os.path.join(args.output_dir, 'val')
+                
+                if not os.path.exists(dest_img_dir):
+                    os.makedirs(dest_img_dir)
+                
+                xml_path = os.path.join(xml_dir, xml_filename)
+                tree = ET.parse(xml_path)
+                root = tree.getroot()
 
-                bnd_id += 1
-
-            if has_cat:
-                src_img_path = root.find("path").text
-                dest_img_path = os.path.join(dest_img_dir, '{}.jpg'.format(image_id))
+                src_img_path = root.find('path').text
+                dest_img_path = os.path.join(dest_img_dir, '{}.jpg'.format(bnd_id))
                 shutil.copy(src_img_path, dest_img_path)
                 if not is_jpg(dest_img_path):
                     os.remove(dest_img_path)
                     continue
+                
+                has_cat = False
+                for obj in get(root, 'object'):
+                    category = get_and_check(obj, 'name', 1).text
+                    if category not in categories:
+                        continue
 
-                size = get_and_check(root, 'size', 1)
-                width = int(get_and_check(size, 'width', 1).text)
-                height = int(get_and_check(size, 'height', 1).text)
-                image = {'file_name': '{}.jpg'.format(image_id), 
-                         'height': height, 
-                         'width': width,
-                         'id':image_id}
+                    has_cat = True
+                    category_id = categories[category]
+                    bndbox = get_and_check(obj, 'bndbox', 1)
+                    xmin = int(get_and_check(bndbox, 'xmin', 1).text) - 1
+                    ymin = int(get_and_check(bndbox, 'ymin', 1).text) - 1
+                    xmax = int(get_and_check(bndbox, 'xmax', 1).text)
+                    ymax = int(get_and_check(bndbox, 'ymax', 1).text)
+                    assert(xmax > xmin)
+                    assert(ymax > ymin)
+                    o_width = abs(xmax - xmin)
+                    o_height = abs(ymax - ymin)
+                    ann = {'area': o_width*o_height, 
+                        'iscrowd': 0, 
+                        'image_id': bnd_id, 
+                        'bbox':[xmin, ymin, o_width, o_height],
+                        'category_id': category_id, 
+                        'id': bnd_id, 
+                        'ignore': 0,
+                        'segmentation': []}
 
-                if dataset == 'train':
-                    train_json_dict['images'].append(image)
-                elif dataset == 'val':
-                    val_json_dict['images'].append(image)
+                    if dataset == 'train':
+                        train_json_dict['annotations'].append(ann)
+                    elif dataset == 'val':
+                        val_json_dict['annotations'].append(ann)
 
-                image_id += 1
-                print('Processed: {}'.format(image_id))
+                if has_cat:
+                    size = get_and_check(root, 'size', 1)
+                    width = int(get_and_check(size, 'width', 1).text)
+                    height = int(get_and_check(size, 'height', 1).text)
+                    image = {'file_name': '{}.jpg'.format(bnd_id), 
+                            'height': height, 
+                            'width': width,
+                            'id':bnd_id}
+
+                    if dataset == 'train':
+                        train_json_dict['images'].append(image)
+                    elif dataset == 'val':
+                        val_json_dict['images'].append(image)
+
+                    bnd_id += 1
+                    print('Processed: {}'.format(bnd_id))
 
     for cate, cid in categories.items():
         cat = {'supercategory': 'none', 
