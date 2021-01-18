@@ -5,6 +5,7 @@ import numpy as np
 import yaml
 import argparse
 from pycocotools.coco import COCO
+import itertools
 
 def get_args():
     parser = argparse.ArgumentParser('Convert dataset from voc format to coco format.')
@@ -45,6 +46,8 @@ def convert(args, categories, dataset):
             for img_id in img_ids:
                 img = coco.loadImgs(ids=img_id)
                 img_name = img[0]['file_name']
+                if img_name == '1.jpg':
+                    aaa = 0
                 image_width = img[0]['width']
                 image_height = img[0]['height']
                 img_src = os.path.join(images_dir, img_name)
@@ -53,12 +56,10 @@ def convert(args, categories, dataset):
                 f.write(img_dst)
                 f.write(os.linesep)
                 img_dst_txt = os.path.splitext(img_dst)[0] + '.txt'
-                with open(img_dst_txt, 'w') as tf:
+                with open(img_dst_txt, 'a') as tf:
                     ann_ids = coco.getAnnIds(imgIds=img_id, catIds=cat_id)
                     anns = coco.loadAnns(ann_ids)
                     cat_anns_n += len(anns)
-                    if img_name == '4876.jpg':
-                        print(anns)
                     for ann in anns:
                         x_top_left = ann['bbox'][0]
                         y_top_left = ann['bbox'][1]
@@ -75,10 +76,10 @@ def convert(args, categories, dataset):
                         c = bbox_width / image_width
                         d = bbox_height / image_height
                         
-                        #tf.write('{0} {1:.6} {2:.6} {3:.6} {4:.6}\n'.format(yolo_id, a, b, c, d))
-                        print(f"{yolo_id} {a:.6f} {b:.6f} {c:.6f} {d:.6f}", file=tf)
+                        tf.write('{0} {1:.6} {2:.6} {3:.6} {4:.6}\n'.format(yolo_id, a, b, c, d))
+                        #print(f"{yolo_id} {a:.6f} {b:.6f} {c:.6f} {d:.6f}", file=tf)
 
-                print('Category: {0}={1}, anns: {2}, COMPLETED'.format(yolo_id, cat_names[yolo_id], cat_anns_n))
+            print('Category: {0}={1}, anns: {2}, COMPLETED'.format(yolo_id, cat_names[yolo_id], cat_anns_n))
 
 if __name__ == '__main__':
     args = get_args()

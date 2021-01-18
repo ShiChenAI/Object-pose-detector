@@ -88,6 +88,7 @@ def convert(args, categories):
     val_json_file = os.path.join(dest_ann_path, 'instances_val.json')
     train_json_dict = {'images':[], 'type': 'instances', 'annotations': [], 'categories': []}
     val_json_dict = {'images':[], 'type': 'instances', 'annotations': [], 'categories': []}
+    image_id = args.start_id
     bnd_id = args.start_id
 
     for xml_dir in xml_dirs:
@@ -107,12 +108,12 @@ def convert(args, categories):
                 root = tree.getroot()
 
                 src_img_path = root.find('path').text
-                dest_img_path = os.path.join(dest_img_dir, '{}.jpg'.format(bnd_id))
+                dest_img_path = os.path.join(dest_img_dir, '{}.jpg'.format(image_id))
                 shutil.copy(src_img_path, dest_img_path)
                 if not is_jpg(dest_img_path):
                     os.remove(dest_img_path)
                     continue
-                
+
                 has_cat = False
                 for obj in get(root, 'object'):
                     category = get_and_check(obj, 'name', 1).text
@@ -132,7 +133,7 @@ def convert(args, categories):
                     o_height = abs(ymax - ymin)
                     ann = {'area': o_width*o_height, 
                         'iscrowd': 0, 
-                        'image_id': bnd_id, 
+                        'image_id': image_id, 
                         'bbox':[xmin, ymin, o_width, o_height],
                         'category_id': category_id, 
                         'id': bnd_id, 
@@ -143,23 +144,25 @@ def convert(args, categories):
                         train_json_dict['annotations'].append(ann)
                     elif dataset == 'val':
                         val_json_dict['annotations'].append(ann)
+                    
+                    bnd_id += 1
 
                 if has_cat:
                     size = get_and_check(root, 'size', 1)
                     width = int(get_and_check(size, 'width', 1).text)
                     height = int(get_and_check(size, 'height', 1).text)
-                    image = {'file_name': '{}.jpg'.format(bnd_id), 
+                    image = {'file_name': '{}.jpg'.format(image_id), 
                             'height': height, 
                             'width': width,
-                            'id':bnd_id}
+                            'id':image_id}
 
                     if dataset == 'train':
                         train_json_dict['images'].append(image)
                     elif dataset == 'val':
                         val_json_dict['images'].append(image)
 
-                    bnd_id += 1
-                    print('Processed: {}'.format(bnd_id))
+                    image_id += 1
+                    print('Processed: {}'.format(image_id))
 
     for cate, cid in categories.items():
         cat = {'supercategory': 'none', 
@@ -184,7 +187,7 @@ if __name__ == '__main__':
     with open(args.cfg) as f:
         data_dict = yaml.load(f, Loader=yaml.FullLoader) 
         for i, category in enumerate(data_dict['names']):
-            categories[category] = i
+            categories[category] = i + 1
     print(categories)
 
     convert(args, categories)
