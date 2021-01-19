@@ -1,7 +1,6 @@
 # Object-pose-detector
 
 ## Contents
-- [Instruction](#instruction)
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Usage](#usage)
@@ -43,8 +42,8 @@ sh weights/download_weights.sh
 .yaml is the dataset configuration file that defines 1) a path to a directory of training images (or path to a *.txt file with a list of training images), 2) a path to a directory of validation images, 3) the number of classes, 4) a list of class names:
 ```
 # train and val data as 1) directory: path/images/, 2) file: path/images.txt, or 3) list: [path1/images/, path2/images/]
-train: ../coco128/images/train2017/
-val: ../coco128/images/train2017/
+train: ../coco2017/train2017/
+val: ../coco2017/train2017/
 
 # number of classes
 nc: 80
@@ -81,6 +80,7 @@ Organize the custom train and val images and labels according to the example bel
                 -000000000006.jpg
                 -000000000006.txt
 ```
+If you already have a custom dataset in COCO format or VOC format, you can use the scripts `/datasets/voc2coco.py` and `/datasets/coco2yolo.py` to convert it to YOLOv3 format.
 
 3. Train
 Train a YOLOv3 model on the custom data by specifying dataset, batch-size, image size and pretrained weight `--weights yolov3.pt`.
