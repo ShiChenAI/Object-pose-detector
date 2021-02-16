@@ -42,7 +42,7 @@ def get_args():
 if __name__ == '__main__':
     args = get_args()
     ip = ImageProcessor(args)
-    dets = ip.process(video_src=0, show_results=True)
+    dets = ip.process(video_src=args.source, show_results=True)
 
     # Directories
     save_dir = Path(increment_path(Path(args.project) / args.name, exist_ok=args.exist_ok))  # increment run
